@@ -80,16 +80,12 @@ module Parse =
             | current, co when current.X = co.X -> 
                 if current.Y > co.Y then 
                     for y in [1..current.Y - co.Y] do
-                        //printfn "y's are different, my array is %A" [1..current.Y - co.Y]
-                        //printfn "my base Y value is %i" current.Y
                         newRocks <- (Point.rock co.X (current.Y - y))::newRocks
                     { state with 
                         Current = coord 
                         Rocks = state.Rocks@newRocks}
                 else 
                     for y in [1..co.Y - current.Y] do
-                        //printfn "y's are different, my array is %A" [1..co.Y - current.Y]
-                        //printfn "my base Y value is %i" co.Y
                         newRocks <- (Point.rock co.X (current.Y + y))::newRocks
                     { state with 
                         Current = coord 
@@ -98,16 +94,12 @@ module Parse =
             | current, co when current.Y = co.Y -> 
                 if current.X > co.X then 
                     for x in [1..current.X - co.X] do
-                        //printfn "x's are different, my array is %A" [1..current.X - co.X]
-                        //printfn "my base X value is %i" current.X
                         newRocks <- (Point.rock (current.X - x) co.Y)::newRocks
                     { state with 
                         Current = coord 
                         Rocks = state.Rocks@newRocks}
                 else 
                     for x in [1..co.X - current.X] do
-                        //printfn "x's are different, my array is %A" [1..co.X - current.X]
-                        //printfn "my base X value is %i" co.X
                         newRocks <- (Point.rock (current.X + x) co.Y)::newRocks
                     { state with 
                         Current = coord 
@@ -124,12 +116,9 @@ module Parse =
 
 module FallingSand = 
     let coordIsBlocked (coord: Coord) (model: Point list) = 
-        //printfn "CheckingBlock on if X: %i, Y: %i is blocked" coord.X coord.Y
-        //printfn "Check yielded %A" (model |> List.exists (fun c -> c.X = coord.X && c.Y = coord.Y))
         model |> List.exists (fun c -> c.X = coord.X && c.Y = coord.Y)
 
     let canGoDown (coord: Coord) (model: Point list) = 
-        //printfn "testing if X: %i, Y: %i is blocked" coord.X (coord.Y + 1)
         coordIsBlocked ({ coord with Y = coord.Y + 1 }) model |> not
 
     let canGoDownLeft (coord: Coord) (model: Point list) = 
@@ -150,27 +139,51 @@ module FallingSand =
             model
         |> not
 
+    type DropResult = 
+        | Success of Point list
+        | Abyss
+
     let dropSand (model: Point list) = 
         let mutable x = 0 
         let mutable y = 0
         let mutable carryOn = true
+        let abyssConstant = 200
+        let mutable brokeDueToAbyss = false
 
         while carryOn do 
-            if canGoDown (Coord.create (500 - x) (0 + y)) model then 
-                //printfn "could go down"
+            if y > abyssConstant then 
+                brokeDueToAbyss <- true
+                carryOn <- false
+            if canGoDown (Coord.create (500 + x) (0 + y)) model then 
                 y <- y + 1
-            elif canGoDownLeft (Coord.create (500 - x) (0 + y)) model then do 
+            elif canGoDownLeft (Coord.create (500 + x) (0 + y)) model then 
                 y <- y + 1
                 x <- x - 1
-            elif canGoDownRight (Coord.create (500 - x) (0 + y)) model then 
+            elif canGoDownRight (Coord.create (500 + x) (0 + y)) model then 
                 y <- y + 1
                 x <- x + 1
             else 
                 carryOn <- false
 
-        printfn "dropping sand onto %A" (Point.sand (500 - x) (0 + y))
-        (Point.sand (500 - x) (0 + y))::model
+        if not brokeDueToAbyss then 
+            (Point.sand (500 + x) (0 + y))::model |> DropResult.Success
+        else 
+            DropResult.Abyss
 
+module Print = 
+    let print (model: Point list) = 
+        for y in [0..40] do 
+            let mutable chars: char list = []
+            for x in [450..550] do
+            
+                let coord = Coord.create x y 
+                match model |> List.tryFind (fun x -> x.X = coord.X && x.Y = coord.Y) with 
+                | None -> chars <-  ['_'] |> List.append chars
+                | Some p when p.Fill = Fill.Rock -> chars <- ['#'] |> List.append chars
+                | Some p when p.Fill = Fill.Sand -> chars <- ['O'] |> List.append chars
+                | Some p when p.Fill = Fill.Air -> chars <- ['_'] |> List.append chars
+                | _ -> failwith "ahh"
+            printfn "%A" chars
 
 
         
@@ -180,9 +193,20 @@ let startingModel =
     |> Array.toList
 
 let withTenSand = 
-    [0..10]
-    |> List.fold (fun state _ -> FallingSand.dropSand state) startingModel
+    let mutable carryOn = true 
+    let mutable state: Point list = startingModel
+    Print.print state
 
-printfn "%A" withTenSand
+    
+    while carryOn do 
+        for i in [0..24] do 
+            //Print.print state
+            match FallingSand.dropSand state with 
+            | FallingSand.DropResult.Success points -> state <- points
+            | FallingSand.DropResult.Abyss -> 
+                printfn "terminated after i iterations: %i" i
+                carryOn <- false
+            
+
 
     
